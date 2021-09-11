@@ -39,7 +39,7 @@ class Decoder(nn.Module):
         x_lbl = torch.reshape(x_lbl,[self.num_nodes,self.label_size])
         
         x_edge = self.act1(self.dense_edge(x))
-        x_edge = torch.reshape(x_bbx,[self.num_nodes,self.num_nodes])
+        x_edge = torch.reshape(x_edge,[self.num_nodes,self.num_nodes])
         
         class_pred = self.act2(self.dense_cls(x))
               

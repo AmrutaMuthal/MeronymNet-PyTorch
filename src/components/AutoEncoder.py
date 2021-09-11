@@ -1,7 +1,13 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from components import Encoder, Decoder
+
+from torch_geometric.nn import MessagePassing
+from torch_geometric.utils import remove_self_loops, add_self_loops, dense_to_sparse
+from torch_geometric.data import Data
+
+from Encoder import Encoder
+from Decoder import Decoder
 
 class AutoEncoder(nn.Module):
     
@@ -20,7 +26,10 @@ class AutoEncoder(nn.Module):
         self.num_nodes = num_nodes
         self.encoder = Encoder(latent_dims,
                                num_nodes,
-                               bbx_size)
+                               bbx_size,
+                               label_size,
+                               num_obj_classes
+                              )
         
         self.decoder = Decoder(latent_dims,
                                num_nodes,
@@ -35,6 +44,6 @@ class AutoEncoder(nn.Module):
         x_bbx, x_lbl, x_edge, class_pred = self.decoder(z_latent)
         #true_edge=E, true_node=X, latent_dim,  true_class=nodes, class_vec=class_pred)
         # conditioning has to be added
-        return x_bbx, x_lbl, x_edge, class_pred
+        return x_bbx, x_lbl, x_edge, class_pred, z_mean, z_logvar
 
     

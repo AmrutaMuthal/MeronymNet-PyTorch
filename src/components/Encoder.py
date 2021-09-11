@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
-from components import GCLayer
+from GCLayer import GCLayer
 
 class Encoder(nn.Module):
     """ Encoder module for AutoEncoder in BoxGCN-VAE. 
@@ -11,18 +11,19 @@ class Encoder(nn.Module):
     def __init__(self,
                  latent_dims,
                  num_nodes,
-                 data_size,
+                 bbx_size,
+                 label_size,
+                 num_obj_classes
                  ):
         super(Encoder, self).__init__()
        
-        # Encoder. Add GC layer
-        self.gconv1 = GCLayer(data_size,32)
+        self.gconv1 = GCLayer(bbx_size+label_size,32)
         self.gconv2 = GCLayer(32,16)
-        self.dense_boxes = nn.Linear(4, 16)
-        self.dense_labels = nn.Linear(1,16)
+        self.dense_boxes = nn.Linear(bbx_size, 16)
+        self.dense_labels = nn.Linear(label_size,16)
         self.act = nn.ReLU()
         self.dense1 = nn.Linear(16*num_nodes,128)
-        self.dense2 = nn.Linear(17*num_nodes,128)
+        self.dense2 = nn.Linear(16*num_nodes+num_obj_classes,128)
         self.dense3 = nn.Linear(128,128)
         
         self.latent = nn.Linear(128,latent_dims)
@@ -36,10 +37,10 @@ class Encoder(nn.Module):
         boxes = X_data[:,1:]
         boxes = self.act(self.dense_boxes(boxes))
         
-        labels = X_data[:,:1]
-        labels = self.act(self.dense_labels(labels))
+        node_labels = X_data[:,:1]
+        node_labels = self.act(self.dense_labels(node_labels))
         
-        mix = torch.add(boxes,labels)
+        mix = torch.add(boxes,node_labels)
         mix = torch.flatten(mix)
         mix = self.act(self.dense1(mix))
         
@@ -48,7 +49,6 @@ class Encoder(nn.Module):
         x = torch.add(x,mix)
         x = self.act(self.dense3(x))
         x = self.act(self.dense3(x))
-        print(x.size())
         
         z_mean = self.act(self.latent(x))
         z_logvar = self.act(self.latent(x))
