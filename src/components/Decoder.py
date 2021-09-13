@@ -18,7 +18,7 @@ class Decoder(nn.Module):
         self.bbx_size = bbx_size
         self.class_size = class_size
         self.label_size = label_size
-        self.dense1 = nn.Linear(latent_dims,128)  
+        self.dense1 = nn.Linear(latent_dims + num_nodes + class_size,128)  
         self.dense2 = nn.Linear(128,128)
         self.dense_bbx = nn.Linear(128,num_nodes*bbx_size)
         self.dense_lbl = nn.Linear(128,num_nodes*label_size)

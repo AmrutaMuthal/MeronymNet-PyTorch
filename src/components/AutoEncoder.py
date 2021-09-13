@@ -40,8 +40,17 @@ class AutoEncoder(nn.Module):
     def forward(self,E, X , nodes, obj_class):
 
         z_mean, z_logvar = self.encoder(E, X, obj_class)
-        z_latent = z_mean + torch.randn(self.latent_dims)*torch.exp(z_logvar)
-        x_bbx, x_lbl, x_edge, class_pred = self.decoder(z_latent)
+        
+        #sampling
+        epsilon = torch.normal(torch.zeros(z_mean.size()[0]))
+        z_latent = z_mean + epsilon*torch.exp(z_logvar)
+        
+        # conditioning
+        node_flattened = torch.flatten(nodes)
+        conditioned_z = torch.cat([node_flattened, z_latent])
+        conditioned_z = torch.cat([obj_class, conditioned_z])
+        
+        x_bbx, x_lbl, x_edge, class_pred = self.decoder(conditioned_z)
         #true_edge=E, true_node=X, latent_dim,  true_class=nodes, class_vec=class_pred)
         # conditioning has to be added
         return x_bbx, x_lbl, x_edge, class_pred, z_mean, z_logvar
