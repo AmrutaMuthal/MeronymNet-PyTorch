@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch_geometric.nn as gnn
 from GCLayer import GCLayer
 
 class Encoder(nn.Module):
@@ -13,38 +14,52 @@ class Encoder(nn.Module):
                  num_nodes,
                  bbx_size,
                  label_size,
-                 num_obj_classes
+                 num_obj_classes,
+                 hidden1,
+                 hidden2,
+                 hidden3,
                  ):
         super(Encoder, self).__init__()
-       
-        self.gconv1 = GCLayer(bbx_size+label_size,32)
-        self.gconv2 = GCLayer(32,16)
-        self.dense_boxes = nn.Linear(bbx_size, 16)
-        self.dense_labels = nn.Linear(label_size,16)
-        self.act = nn.ReLU()
-        self.dense1 = nn.Linear(16*num_nodes,128)
-        self.dense2 = nn.Linear(16*num_nodes+num_obj_classes,128)
-        self.dense3 = nn.Linear(128,128)
         
-        self.latent = nn.Linear(128,latent_dims)
+        self.latent_dims = latent_dims
+        self.num_nodes = num_nodes
+        self.bbx_size = bbx_size
+        self.label_size = label_size
+        self.num_obj_classes = num_obj_classes
+        
+        self.gconv1 = gnn.GCNConv(bbx_size+label_size,hidden1, add_self_loops = False, bias=False, normalize=False)
+        self.gconv2 = gnn.GCNConv(hidden1,hidden2, add_self_loops = False, bias=False, normalize=False)
+        self.dense_boxes = nn.Linear(bbx_size, hidden2)
+        self.dense_labels = nn.Linear(label_size,hidden2)
+        self.act = nn.ReLU()
+        self.dense1 = nn.Linear(16*num_nodes,hidden3)
+        self.dense2 = nn.Linear(16*num_nodes+num_obj_classes,hidden3)
+        self.dense3 = nn.Linear(hidden3,hidden3)
+        
+        self.latent = nn.Linear(hidden3,latent_dims)
 
     def forward(self, E, X_data,class_labels):
         
         x = self.gconv1(X_data,E)
         x = self.gconv2(x,E)
-        x = torch.flatten(x)
+        
+        batch_size = int(x.shape[0]/self.num_nodes)
+        x = torch.reshape(x,(batch_size,self.num_nodes*x.shape[-1]))
         
         boxes = X_data[:,1:]
+        boxes = torch.reshape(boxes,(batch_size,self.num_nodes,boxes.shape[-1]))                  
         boxes = self.act(self.dense_boxes(boxes))
         
         node_labels = X_data[:,:1]
+        node_labels = torch.reshape(node_labels,(batch_size,self.num_nodes,node_labels.shape[-1]))                  
         node_labels = self.act(self.dense_labels(node_labels))
         
         mix = torch.add(boxes,node_labels)
-        mix = torch.flatten(mix)
+        mix = torch.reshape(mix,(batch_size,mix.shape[-2]*mix.shape[-1]))                  
         mix = self.act(self.dense1(mix))
         
-        x = torch.cat([class_labels,x])
+        class_labels = torch.reshape(class_labels,(batch_size,int(class_labels.shape[-1]/batch_size)))
+        x = torch.cat([class_labels,x],dim=-1)
         x = self.act(self.dense2(x))
         x = torch.add(x,mix)
         x = self.act(self.dense3(x))

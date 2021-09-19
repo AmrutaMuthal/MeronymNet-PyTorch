@@ -32,14 +32,15 @@ class Decoder(nn.Module):
         x = self.act1(self.dense2(x))
         x = self.act1(self.dense2(x))
         
+        batch_size = x.shape[0]
         x_bbx = self.act1(self.dense_bbx(x))
-        x_bbx = torch.reshape(x_bbx,[self.num_nodes,self.bbx_size])
+        x_bbx = torch.reshape(x_bbx,[batch_size, self.num_nodes, self.bbx_size])
         
         x_lbl = self.act1(self.dense_lbl(x))
-        x_lbl = torch.reshape(x_lbl,[self.num_nodes,self.label_size])
+        x_lbl = torch.reshape(x_lbl,[batch_size, self.num_nodes, self.label_size])
         
         x_edge = self.act1(self.dense_edge(x))
-        x_edge = torch.reshape(x_edge,[self.num_nodes,self.num_nodes])
+        x_edge = torch.reshape(x_edge,[batch_size, self.num_nodes, self.num_nodes])
         
         class_pred = self.act2(self.dense_cls(x))
               
