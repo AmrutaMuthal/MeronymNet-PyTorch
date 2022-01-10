@@ -23,6 +23,9 @@ def adj_loss(pred_edge, true_edge, batch, num_nodes):
 def bbox_loss(pred_box, true_box):
     
     # IOU loss
+    smooth_1 = torch.tensor([0.2]).cuda()
+    smooth_2 = torch.tensor([1e-06]).cuda()
+    zero = torch.tensor([0.0]).cuda()
     true_box = torch.reshape(true_box,pred_box.shape)
     mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
     pred_box = mask*pred_box
@@ -34,13 +37,13 @@ def bbox_loss(pred_box, true_box):
     xB = torch.minimum(x2g, x2)
     yB = torch.minimum(y2g, y2)
     
-    interArea = torch.maximum(torch.tensor([0.0]).cuda(),
-                              (xB - xA + 1)) * torch.maximum(torch.tensor([0.0]).cuda(),
-                                                         yB - yA + 1)
-    boxAArea = (x2g - x1g + 1) * (y2g - y1g + 1)
-    boxBArea = (x2 - x1 + 1) * (y2 - y1 + 1)
-    iouk = (interArea) / (boxAArea + boxBArea - interArea + 1e-06)
-    iou_loss = -torch.log(iouk + 1e-6)
+    interArea = (torch.maximum(zero, (xB - xA + smooth_1)) * torch.maximum(zero,(yB - yA + smooth_1)))
+    boxAArea = (torch.maximum(zero, (x2g - x1g + smooth_1)) * torch.maximum(zero,(y2g - y1g + smooth_1)))
+    boxBArea = (torch.maximum(zero, (x2 - x1 + smooth_1)) * torch.maximum(zero,(y2 - y1 + smooth_1)))
+    unionArea = boxAArea + boxBArea - interArea + smooth_2
+    
+    iouk = interArea / unionArea
+    iou_loss = -torch.log(iouk + smooth_2)
     iou_loss = torch.mean(iou_loss)#/torch.sum(mask)
     
     # Box regression loss
@@ -51,22 +54,9 @@ def bbox_loss(pred_box, true_box):
     reg_loss = torch.sum(reg_loss)/(total_non_zero+1)
     
     # Pairwise box regression loss
-    pair_mse_true = []
-    pair_mse_pred = []
-    true_unstacked = torch.unbind(true_box,dim=-2)
-    pred_unstacked = torch.unbind(pred_box,dim=-2)
-    
-    for i in range(len(true_unstacked)):
-        
-        for j in range(i, len(true_unstacked)):
-            pair_mse_true.append(F.mse_loss(true_unstacked[i],true_unstacked[j]))
-            pair_mse_pred.append(F.mse_loss(pred_unstacked[i],pred_unstacked[j]))
-        
-    
-    pair_loss = F.mse_loss(torch.stack(pair_mse_pred), 
-                           torch.stack(pair_mse_true),
-                           reduction='none',
-                           )
+    pair_mse_true = torch.cdist(true_box, true_box)
+    pair_mse_pred = torch.cdist(pred_box, pred_box)
+    pair_loss = F.mse_loss(pair_mse_true, pair_mse_pred)
     total_non_zero = torch.count_nonzero(torch.sum(pair_loss,dim=-1))
     pair_loss = torch.sum(pair_loss)/(total_non_zero+1)
     

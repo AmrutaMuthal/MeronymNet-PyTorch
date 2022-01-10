@@ -44,4 +44,4 @@ class Decoder(nn.Module):
         
         class_pred = self.act2(self.dense_cls(x))
               
-        return x_bbx, x_lbl, x_edge, class_pred
+        return x_bbx, x_lbl , x_edge , class_pred

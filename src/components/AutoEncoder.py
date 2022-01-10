@@ -49,7 +49,7 @@ class GCNAutoEncoder(nn.Module):
                                num_obj_classes,
                                label_size)
         
-    def forward(self,E, X , nodes, obj_class):
+    def forward(self, E, X , nodes, obj_class):
 
         z_mean, z_logvar = self.encoder(E, X, obj_class)
         batch_size = z_mean.shape[0]
@@ -64,9 +64,9 @@ class GCNAutoEncoder(nn.Module):
         conditioned_z = torch.cat([nodes, z_latent],dim=-1)
         conditioned_z = torch.cat([obj_class, conditioned_z],dim=-1)
         
-        x_bbx, x_lbl, x_edge, class_pred = self.decoder(conditioned_z)
+        x_bbx, x_lbl, x_edge, x_class = self.decoder(conditioned_z)
         
-        return x_bbx, x_lbl, x_edge, class_pred, z_mean, z_logvar
+        return x_bbx, x_lbl, x_edge, x_class, z_mean, z_logvar
 
 
 class GATAutoEncoder(nn.Module):
