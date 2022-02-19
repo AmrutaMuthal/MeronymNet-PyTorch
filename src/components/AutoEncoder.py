@@ -26,7 +26,9 @@ class GCNAutoEncoder(nn.Module):
                  label_size=1,
                  hidden1=32,
                  hidden2=16,
-                 hidden3=128
+                 hidden3=128,
+                 dynamic_margin=False,
+                 output_log=False
                 ):
         
         super(GCNAutoEncoder, self).__init__()
@@ -47,7 +49,15 @@ class GCNAutoEncoder(nn.Module):
                                num_nodes,
                                bbx_size,
                                num_obj_classes,
-                               label_size)
+                               label_size,
+                               output_log
+                              )
+        
+        self.dynamic_margin = dynamic_margin
+        
+        if self.dynamic_margin:
+            self.margin_layer = nn.Linear(2*bbx_size, 2)
+            self.margin_activation = nn.Sigmoid()
         
     def forward(self, E, X , nodes, obj_class):
 
@@ -59,14 +69,21 @@ class GCNAutoEncoder(nn.Module):
         z_latent = z_mean + epsilon*torch.exp(z_logvar)
         
         # conditioning
-        nodes = torch.reshape(nodes,(batch_size,self.num_nodes))
-        obj_class = torch.reshape(obj_class,(batch_size,self.num_obj_classes))
+        nodes = torch.reshape(nodes,(batch_size, self.num_nodes))
+        obj_class = torch.reshape(obj_class, (batch_size, self.num_obj_classes))
         conditioned_z = torch.cat([nodes, z_latent],dim=-1)
         conditioned_z = torch.cat([obj_class, conditioned_z],dim=-1)
         
-        x_bbx, x_lbl, x_edge, x_class = self.decoder(conditioned_z)
+        x_bbx, x_lbl, _, _ = self.decoder(conditioned_z)
         
-        return x_bbx, x_lbl, x_edge, x_class, z_mean, z_logvar
+        if self.dynamic_margin:
+            
+            X_reshaped = torch.reshape(X, (batch_size, 24, 5))
+            margin = self.margin_layer(torch.cat([X_reshaped[:, :, 1:], x_bbx], dim=-1))
+            margin = self.margin_activation(margin)
+            return x_bbx, x_lbl, z_mean, z_logvar, margin
+
+        return x_bbx, x_lbl, z_mean, z_logvar
 
 
 class GATAutoEncoder(nn.Module):
@@ -103,6 +120,7 @@ class GATAutoEncoder(nn.Module):
                                bbx_size,
                                num_obj_classes,
                                label_size)
+        
         
     def forward(self,E, X , nodes, obj_class):
 

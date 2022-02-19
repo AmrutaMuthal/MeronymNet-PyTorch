@@ -10,7 +10,10 @@ class Decoder(nn.Module):
                  num_nodes,
                  bbx_size,
                  class_size,
-                 label_size=1
+                 label_size=1,
+                 output_log=False,
+                 predict_edges=False,
+                 predict_class=False
                  ):
         super(Decoder, self).__init__()
        
@@ -18,6 +21,9 @@ class Decoder(nn.Module):
         self.bbx_size = bbx_size
         self.class_size = class_size
         self.label_size = label_size
+        self.output_log = output_log
+        self.predict_edges = predict_edges
+        self.predict_class = predict_class
         self.dense1 = nn.Linear(latent_dims + num_nodes + class_size,128)  
         self.dense2 = nn.Linear(128,128)
         self.dense_bbx = nn.Linear(128,num_nodes*bbx_size)
@@ -26,6 +32,7 @@ class Decoder(nn.Module):
         self.dense_cls = nn.Linear(128,class_size)
         self.act1 = nn.Sigmoid()
         self.act2 = nn.Softmax()
+        self.act3 = nn.ReLU()
 
     def forward(self, embedding):
         x = self.act1(self.dense1(embedding))
@@ -33,15 +40,22 @@ class Decoder(nn.Module):
         x = self.act1(self.dense2(x))
         
         batch_size = x.shape[0]
-        x_bbx = self.act1(self.dense_bbx(x))
+        if self.output_log:
+            x_bbx = self.act3(self.dense_bbx(x))
+        else:
+            x_bbx = self.act1(self.dense_bbx(x))
         x_bbx = torch.reshape(x_bbx,[batch_size, self.num_nodes, self.bbx_size])
         
         x_lbl = self.act1(self.dense_lbl(x))
         x_lbl = torch.reshape(x_lbl,[batch_size, self.num_nodes, self.label_size])
         
-        x_edge = self.act1(self.dense_edge(x))
-        x_edge = torch.reshape(x_edge,[batch_size, self.num_nodes, self.num_nodes])
+        x_edge = None
+        if self.predict_edges:
+            x_edge = self.act1(self.dense_edge(x))
+            x_edge = torch.reshape(x_edge,[batch_size, self.num_nodes, self.num_nodes])
         
-        class_pred = self.act2(self.dense_cls(x))
+        class_pred = None
+        if self.predict_class:
+            class_pred = self.act2(self.dense_cls(x))
               
-        return x_bbx, x_lbl , x_edge , class_pred
+        return x_bbx, x_lbl, x_edge, class_pred
