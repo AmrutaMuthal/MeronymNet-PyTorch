@@ -12,6 +12,7 @@ class Decoder(nn.Module):
                  class_size,
                  label_size=1,
                  output_log=False,
+                 predict_parts=False,
                  predict_edges=False,
                  predict_class=False
                  ):
@@ -22,6 +23,7 @@ class Decoder(nn.Module):
         self.class_size = class_size
         self.label_size = label_size
         self.output_log = output_log
+        self.predict_parts=predict_parts
         self.predict_edges = predict_edges
         self.predict_class = predict_class
         self.dense1 = nn.Linear(latent_dims + num_nodes + class_size,128)  
@@ -46,8 +48,10 @@ class Decoder(nn.Module):
             x_bbx = self.act1(self.dense_bbx(x))
         x_bbx = torch.reshape(x_bbx,[batch_size, self.num_nodes, self.bbx_size])
         
-        x_lbl = self.act1(self.dense_lbl(x))
-        x_lbl = torch.reshape(x_lbl,[batch_size, self.num_nodes, self.label_size])
+        x_lbl=None
+        if self.predict_parts:
+            x_lbl = self.act1(self.dense_lbl(x))
+            x_lbl = torch.reshape(x_lbl,[batch_size, self.num_nodes, self.label_size])
         
         x_edge = None
         if self.predict_edges:
