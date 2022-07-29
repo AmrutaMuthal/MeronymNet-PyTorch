@@ -94,6 +94,12 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False):
     iouk = interArea / unionArea
     iou_loss = -torch.log(iouk + smooth_2)*mask
     iou_loss = torch.mean(iou_loss)
+    
+    # You can make the changes here to modify in which form you want Margin included in the Loss.
+    # 1 variation tried: Margin not present in the Loss.
+    # 2 variation tried: Margin added using the sum function
+    # 3 variation tried: Margin added using the mean function
+    
     if torch.is_tensor(margin):
 # #         iou_loss += torch.mean((one-margin)*mask)
         iou_loss += torch.sum((one-margin)*mask)

@@ -86,7 +86,8 @@ class GCNAutoEncoder(nn.Module):
 #             print('Hello1')
 
             # change final shape of X_reshaped here for running the alternate experiments
-            X_reshaped = torch.reshape(X, (batch_size, 24, 5))
+#             X_reshaped = torch.reshape(X, (batch_size, 24, 5))
+            X_reshaped = torch.reshape(X, (batch_size,self.num_nodes, 5))
             margin = self.margin_layer(torch.cat([X_reshaped[:, :, 1:], x_bbx], dim=-1))
             margin = self.margin_activation(margin)
             if self.return_label_loss:
@@ -176,7 +177,7 @@ class GCNAutoEncoder_Combined_Parts(nn.Module):
 #             print('Hello1')
 
             # change final shape of X_reshaped here for running the alternate experiments
-            X_reshaped = torch.reshape(X, (batch_size, 1, 5))
+            X_reshaped = torch.reshape(X, (batch_size,self.num_nodes, 5))
             margin = self.margin_layer(torch.cat([X_reshaped[:, :, 1:], x_bbx], dim=-1))
             margin = self.margin_activation(margin)
             if self.return_label_loss:
