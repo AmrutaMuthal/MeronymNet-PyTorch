@@ -23,7 +23,7 @@ def adj_loss(pred_edge, true_edge, batch, num_nodes):
 def bbox_loss(pred_box, true_box, margin=None, log_output=False):
     
     # IOU loss
-    smooth_1 = torch.tensor([15]).cuda()
+    smooth_1 = torch.tensor([0.5]).cuda()
     smooth_2 = torch.tensor([1e-08]).cuda()
     zero = torch.tensor([0.0]).cuda()
     one = torch.tensor([1.0]).cuda()
@@ -31,10 +31,11 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False):
     mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
     if log_output:
         log_pred = pred_box.clone()
+        log_true = true_box.clone()
         pred_box = torch.exp(-pred_box)
+        true_box = torch.exp(-true_box)
         
     pred_box = torch.multiply(mask, pred_box)
-    margin = torch.multiply(mask, margin)
     x1g, y1g, x2g, y2g = torch.tensor_split(true_box, 4, dim=-1)
     x1, y1, x2, y2 = torch.tensor_split(pred_box, 4, dim=-1)
     
@@ -43,26 +44,40 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False):
     xB = torch.minimum(x2g, x2)
     yB = torch.minimum(y2g, y2)
     
-    if torch.is_tensor(margin):
-        w, h = torch.tensor_split(margin, 2, dim=-1)
-    else:
-        w, h = x2g-x1g, y2g-y1g
+    w, h = x2g-x1g, y2g-y1g
     
-    interArea = torch.multiply(torch.maximum(zero,(xB - xA + torch.maximum(smooth_1*w,one))), 
-                               torch.maximum(zero, (yB - yA +torch.maximum(smooth_1*h,one))))
-    boxAArea = torch.multiply(torch.maximum(zero, (x2g - x1g + torch.maximum(smooth_1*w,one))),
-                              torch.maximum(zero, (y2g - y1g +torch.maximum(smooth_1*h,one))))
-    boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1 + torch.maximum(smooth_1*w,one))),
-                              torch.maximum(zero,(y2 - y1 + torch.maximum(smooth_1*h,one))))
+    if torch.is_tensor(margin):
+        margin = torch.multiply(mask, margin)
+        w_alpha, h_alpha = torch.tensor_split(margin, 2, dim=-1)
+        w, h = x2g-x1g, y2g-y1g
+        interArea = torch.multiply(torch.maximum(zero,(xB - xA + (w_alpha)*(1-w))), 
+                                   torch.maximum(zero, (yB - yA + (h_alpha)*(1-h))))
+        boxAArea = torch.multiply(torch.maximum(zero, (x2g - x1g + (w_alpha)*(1-w))),
+                                  torch.maximum(zero, (y2g - y1g + (h_alpha)*(1-h))))
+        boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1 + (w_alpha)*(1-w))),
+                                  torch.maximum(zero,(y2 - y1 + (h_alpha)*(1-h))))
+    else:
+        
+        interArea = torch.multiply(torch.maximum(zero,(xB - xA + one)), 
+                                   torch.maximum(zero, (yB - yA + one)))
+        boxAArea = torch.multiply(torch.maximum(zero, (x2g - x1g + one)),
+                                  torch.maximum(zero, (y2g - y1g + one)))
+        boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1 + one)),
+                                  torch.maximum(zero,(y2 - y1 + one)))
     unionArea = boxAArea + boxBArea - interArea + smooth_2
     
     iouk = interArea / unionArea
-    iou_loss = -torch.log(iouk + smooth_2)
+    iou_loss = -torch.log(iouk + smooth_2)*mask
     iou_loss = torch.mean(iou_loss)
     
+    if torch.is_tensor(margin):
+        
+        iou_loss += torch.sum((one-margin)*mask)
+    
     if log_output:
-        true_box = -torch.log(true_box+smooth_2)
-        pred_box = log_pred
+        true_box = log_true*mask#-torch.log(true_box+smooth_2)logtr
+        pred_box = log_pred*mask
+        iou_loss *= 100
   
     # Box regression loss
     reg_loss = F.mse_loss(pred_box, true_box, reduction='none')
