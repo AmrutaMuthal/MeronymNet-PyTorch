@@ -28,12 +28,14 @@ class GCNAutoEncoder(nn.Module):
                  hidden2=16,
                  hidden3=128,
                  dynamic_margin=False,
-                 output_log=False
+                 output_log=False,
+                 area_encoding=False
                 ):
         
         super(GCNAutoEncoder, self).__init__()
         self.latent_dims = latent_dims
         self.num_nodes = num_nodes
+        self.bbx_size = bbx_size
         self.num_obj_classes = num_obj_classes
         self.encoder = GCNEncoder(latent_dims,
                                   num_nodes,
@@ -45,6 +47,13 @@ class GCNAutoEncoder(nn.Module):
                                   hidden3,
                                  )
         
+        self.dynamic_margin = dynamic_margin
+        if self.dynamic_margin:
+            self.margin_layer = nn.Linear(2*bbx_size, 2)
+            self.margin_activation = nn.Sigmoid()
+            
+        if area_encoding:
+            bbx_size-=1
         self.decoder = Decoder(latent_dims,
                                num_nodes,
                                bbx_size,
@@ -53,11 +62,7 @@ class GCNAutoEncoder(nn.Module):
                                output_log
                               )
         
-        self.dynamic_margin = dynamic_margin
         
-        if self.dynamic_margin:
-            self.margin_layer = nn.Linear(2*bbx_size, 2)
-            self.margin_activation = nn.Sigmoid()
         
     def forward(self, E, X , nodes, obj_class):
 
@@ -78,7 +83,7 @@ class GCNAutoEncoder(nn.Module):
         
         if self.dynamic_margin:
             
-            X_reshaped = torch.reshape(X, (batch_size, 24, 5))
+            X_reshaped = torch.reshape(X, (batch_size, self.num_nodes, self.bbx_size+1))
             margin = self.margin_layer(torch.cat([X_reshaped[:, :, 1:], x_bbx], dim=-1))
             margin = self.margin_activation(margin)
             return x_bbx, x_lbl, z_mean, z_logvar, margin
@@ -114,7 +119,6 @@ class GATAutoEncoder(nn.Module):
                                   hidden2,
                                   hidden3,
                                  )
-        
         self.decoder = Decoder(latent_dims,
                                num_nodes,
                                bbx_size,

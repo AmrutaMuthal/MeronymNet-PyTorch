@@ -20,14 +20,18 @@ def adj_loss(pred_edge, true_edge, batch, num_nodes):
     
     return loss
 
-def bbox_loss(pred_box, true_box, margin=None, log_output=False):
+def bbox_loss(pred_box, true_box, margin=None, log_output=False, area_encoding=False):
     
     # IOU loss
     smooth_1 = torch.tensor([0.5]).cuda()
     smooth_2 = torch.tensor([1e-08]).cuda()
     zero = torch.tensor([0.0]).cuda()
     one = torch.tensor([1.0]).cuda()
-    true_box = torch.reshape(true_box,pred_box.shape)
+    pred_shape = pred_box.shape
+    if area_encoding:
+        pred_shape = ([pred_shape[0],pred_shape[1],pred_shape[2]+1])
+    
+    true_box = torch.reshape(true_box,pred_shape)
     mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
     if log_output:
         log_pred = pred_box.clone()
@@ -36,9 +40,13 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False):
         true_box = torch.exp(-true_box)
         
     pred_box = torch.multiply(mask, pred_box)
-    x1g, y1g, x2g, y2g = torch.tensor_split(true_box, 4, dim=-1)
-    x1, y1, x2, y2 = torch.tensor_split(pred_box, 4, dim=-1)
-    
+    if area_encoding:
+        x1g, y1g, x2g, y2g, areag = torch.tensor_split(true_box, 5, dim=-1)
+        x1, y1, x2, y2 = torch.tensor_split(pred_box, 4, dim=-1)
+    else:
+        x1g, y1g, x2g, y2g = torch.tensor_split(true_box, 4, dim=-1)
+        x1, y1, x2, y2 = torch.tensor_split(pred_box, 4, dim=-1)
+
     xA = torch.maximum(x1g, x1)
     yA = torch.maximum(y1g, y1)
     xB = torch.minimum(x2g, x2)
@@ -72,12 +80,18 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False):
     
     if torch.is_tensor(margin):
         
-        iou_loss += torch.sum((one-margin)*mask)
+        iou_loss += torch.mean((one-margin)*mask)
     
     if log_output:
         true_box = log_true*mask#-torch.log(true_box+smooth_2)logtr
         pred_box = log_pred*mask
         iou_loss *= 100
+    
+    if area_encoding:
+        w = pred_box[:,:, 2:3]-pred_box[:, :, 0:1]
+        h = pred_box[:, :, 3:4]-pred_box[:, :, 1:2]
+        pred_box = torch.cat([pred_box,w*h], dim=-1)
+        
   
     # Box regression loss
     reg_loss = F.mse_loss(pred_box, true_box, reduction='none')
@@ -93,7 +107,136 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False):
     total_non_zero = torch.count_nonzero(torch.sum(pair_loss,dim=-1))
     pair_loss = torch.sum(pair_loss)/(total_non_zero+1)
     
+    return iou_loss + reg_loss*10 + pair_loss
+
+def mse_loss(pred_box, true_box):
+    
+    pred_shape = pred_box.shape
+    true_box = torch.reshape(true_box,pred_shape)
+    reg_loss = F.mse_loss(pred_box, true_box, reduction='none')
+    reg_loss = torch.mean(reg_loss,dim = -1)
+    
+    return reg_loss
+    
+def obj_bbox_loss(pred_box, true_box):
+    
+    # IOU loss
+    smooth_1 = torch.tensor([0.5]).cuda()
+    smooth_2 = torch.tensor([1e-08]).cuda()
+    zero = torch.tensor([0.0]).cuda()
+    one = torch.tensor([1.0]).cuda()
+    pred_shape = pred_box.shape
+    true_box = torch.reshape(true_box,pred_shape)
+    x1g, y1g, x2g, y2g = torch.tensor_split(true_box, 4, dim=-1)
+    x1, y1, x2, y2 = torch.tensor_split(pred_box, 4, dim=-1)
+
+    xA = torch.maximum(x1g, x1)
+    yA = torch.maximum(y1g, y1)
+    xB = torch.minimum(x2g, x2)
+    yB = torch.minimum(y2g, y2)
+    
+    w, h = x2g-x1g, y2g-y1g
+
+    interArea = torch.multiply(torch.maximum(zero,(xB - xA + one)), 
+                               torch.maximum(zero, (yB - yA + one)))
+    boxAArea = torch.multiply(torch.maximum(zero, (x2g - x1g + one)),
+                              torch.maximum(zero, (y2g - y1g + one)))
+    boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1 + one)),
+                              torch.maximum(zero,(y2 - y1 + one)))
+    unionArea = boxAArea + boxBArea - interArea + smooth_2
+    
+    iouk = interArea / unionArea
+    iou_loss = -torch.log(iouk + smooth_2)
+    iou_loss = torch.mean(iou_loss)
+    
+    # Box regression loss
+    reg_loss = F.mse_loss(pred_box, true_box, reduction='mean')
+    reg_loss = torch.mean(reg_loss)
+    
+    return iou_loss + reg_loss
+
+def bbox_loss_area_encoding(pred_box, true_box, margin=None, log_output=False):
+    
+    # IOU loss
+    smooth_1 = torch.tensor([0.5]).cuda()
+    smooth_2 = torch.tensor([1e-08]).cuda()
+    zero = torch.tensor([0.0]).cuda()
+    one = torch.tensor([1.0]).cuda()
+    pred_shape = pred_box.shape
+    pred_shape = ([pred_shape[0],pred_shape[1],pred_shape[2]+1])
+    
+    true_box = torch.reshape(true_box,pred_shape)
+    mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
+    if log_output:
+        log_pred = pred_box.clone()
+        log_true = true_box.clone()
+        pred_box = torch.exp(-pred_box)
+        true_box = torch.exp(-true_box)
+        
+    pred_box = torch.multiply(mask, pred_box)
+
+    x1g, y1g, x2g, y2g, areag = torch.tensor_split(true_box, 5, dim=-1)
+    x1, y1, x2, y2 = torch.tensor_split(pred_box, 4, dim=-1)
+
+    xA = torch.maximum(x1g, x1)
+    yA = torch.maximum(y1g, y1)
+    xB = torch.minimum(x2g, x2)
+    yB = torch.minimum(y2g, y2)
+    
+    w, h = x2g-x1g, y2g-y1g
+    
+    if torch.is_tensor(margin):
+        margin = torch.multiply(mask, margin)
+        w_alpha, h_alpha = torch.tensor_split(margin, 2, dim=-1)
+        w, h = x2g-x1g, y2g-y1g
+        interArea = torch.multiply(torch.maximum(zero,(xB - xA + (w_alpha)*(1-w))), 
+                                   torch.maximum(zero, (yB - yA + (h_alpha)*(1-h))))
+        boxAArea = torch.multiply(torch.maximum(zero, (x2g - x1g + (w_alpha)*(1-w))),
+                                  torch.maximum(zero, (y2g - y1g + (h_alpha)*(1-h))))
+        boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1 + (w_alpha)*(1-w))),
+                                  torch.maximum(zero,(y2 - y1 + (h_alpha)*(1-h))))
+    else:
+        
+        interArea = torch.multiply(torch.maximum(zero,(xB - xA + one)), 
+                                   torch.maximum(zero, (yB - yA + one)))
+        boxAArea = torch.multiply(torch.maximum(zero, (x2g - x1g + one)),
+                                  torch.maximum(zero, (y2g - y1g + one)))
+        boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1 + one)),
+                                  torch.maximum(zero,(y2 - y1 + one)))
+    unionArea = boxAArea + boxBArea - interArea + smooth_2
+    
+    iouk = interArea / unionArea
+    iou_loss = -torch.log(iouk + smooth_2)*mask
+    iou_loss = torch.mean(iou_loss)
+    
+    if torch.is_tensor(margin):
+        
+        iou_loss += torch.mean((one-margin)*mask)
+    
+    area = (pred_box[:,:, 2:3]-pred_box[:, :, 0:1])*(pred_box[:, :, 3:4]-pred_box[:, :, 1:2])
+    size = torch.min(pred_box[:, :, 0:2], dim=1, keepdim=True).values-torch.max(pred_box[:, :, 2:4], dim=1, keepdim=True).values
+    area = area/(size[:, :, :1]*size[:, :, 1:])
+    
+        
+  
+    # Box regression loss
+    reg_loss = (F.mse_loss(pred_box, true_box[:, :, :4], reduction='none')
+                +F.mse_loss(area, areag, reduction='none')/4)
+    reg_loss = torch.mean(reg_loss,dim = -1)
+    reg_loss = torch.sum(reg_loss,dim = -1)
+    total_non_zero = torch.count_nonzero(reg_loss)
+    reg_loss = torch.sum(reg_loss)/(total_non_zero+1)
+    
+    # Pairwise box regression loss
+    pair_mse_true = (torch.cdist(true_box[:, :, :4], true_box[:, :, :4]) + 
+                     torch.cdist(areag, areag))
+    pair_mse_pred = (torch.cdist(pred_box, pred_box)+ torch.cdist(area, area))
+    pair_loss = F.mse_loss(pair_mse_true, pair_mse_pred)
+    total_non_zero = torch.count_nonzero(torch.sum(pair_loss,dim=-1))
+    pair_loss = torch.sum(pair_loss)/(total_non_zero+1)
+    
     return iou_loss + reg_loss + pair_loss
+
 
 def bbox_loss_hw(pred_box, true_box):
     
@@ -175,4 +318,28 @@ def frange_cycle_linear(n_iter, start=0.0, stop=1.0,  n_cycle=4, ratio=0.5):
             i += 1
     return L
     
+def iou(true, pred):
+    zero = torch.tensor([0.0]).cuda()
+
+    x1g, y1g, x2g, y2g = torch.tensor_split(true, 4, dim=-1)
+    x1, y1, x2, y2 = torch.tensor_split(torch.squeeze(pred), 4, dim=-1)
     
+    xA = torch.maximum(x1g, x1)
+    yA = torch.maximum(y1g, y1)
+    xB = torch.minimum(x2g, x2)
+    yB = torch.minimum(y2g, y2)
+    
+    w, h = x2g-x1g, y2g-y1g
+    
+    
+    interArea = torch.multiply(torch.maximum(zero,(xB - xA)), 
+                                   torch.maximum(zero, (yB - yA)))
+    boxAArea = torch.multiply(torch.maximum(zero, (x2g - x1g)),
+                              torch.maximum(zero, (y2g - y1g)))
+    boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1)),
+                                  torch.maximum(zero,(y2 - y1)))
+    unionArea = boxAArea + boxBArea - interArea
+    
+    iouk = interArea / unionArea
+    
+    return iouk   

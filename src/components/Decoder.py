@@ -13,7 +13,8 @@ class Decoder(nn.Module):
                  label_size=1,
                  output_log=False,
                  predict_edges=False,
-                 predict_class=False
+                 predict_class=False,
+                 object_bbox=False
                  ):
         super(Decoder, self).__init__()
        
@@ -24,7 +25,11 @@ class Decoder(nn.Module):
         self.output_log = output_log
         self.predict_edges = predict_edges
         self.predict_class = predict_class
-        self.dense1 = nn.Linear(latent_dims + num_nodes + class_size,128)  
+        
+        if object_bbox:
+            self.dense1 = nn.Linear(2*latent_dims + num_nodes + class_size,128)  
+        else:
+            self.dense1 = nn.Linear(latent_dims + num_nodes + class_size,128)  
         self.dense2 = nn.Linear(128,128)
         self.dense_bbx = nn.Linear(128,num_nodes*bbx_size)
         self.dense_lbl = nn.Linear(128,num_nodes*label_size)
