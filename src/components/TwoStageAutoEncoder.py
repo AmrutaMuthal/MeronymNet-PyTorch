@@ -72,6 +72,7 @@ class TwoStageAutoEncoder(nn.Module):
                               )
         self.dense_decoder = Decoder(latent_dims,
                                bbx_size,
+                               num_obj_classes,     
                                hidden1,
                                hidden2,
                               )
@@ -80,25 +81,28 @@ class TwoStageAutoEncoder(nn.Module):
         
     def forward(self, E, X_part, X_obj , nodes, obj_class, variational=False):
         
+        z_mean, z_logvar = self.gcn_encoder(E, X_part, obj_class)
+        
+        batch_size = z_mean.shape[0]
+        obj_class = torch.reshape(obj_class, (batch_size, self.num_obj_classes))
         latent_obj = self.dense_encoder(X_obj)
         
-        x_obj_bbx = self.dense_decoder(latent_obj)
-        z_mean, z_logvar = self.gcn_encoder(E, X_part, obj_class)
-        batch_size = z_mean.shape[0]
+        #obj conditioning
+        conditioned_obj_latent = torch.cat([obj_class, latent_obj],dim=-1)
+        x_obj_bbx = self.dense_decoder(conditioned_obj_latent)
         
         #sampling
         if variational:
-            epsilon = torch.normal(torch.zeros(z_logvar.shape, device=device))
+            epsilon = torch.normal(torch.zeros(z_logvar.shape))
             z_latent = z_mean + epsilon*torch.exp(z_logvar)
         else:
             z_latent = z_mean            
         
         # conditioning
         nodes = torch.reshape(nodes,(batch_size, self.num_nodes))
-        obj_class = torch.reshape(obj_class, (batch_size, self.num_obj_classes))
         conditioned_z = torch.cat([nodes, z_latent],dim=-1)
-        conditioned_z = torch.cat([obj_class, conditioned_z],dim=-1)
-        conditioned_z = torch.cat([latent_obj, conditioned_z],dim=-1)
+        # conditioned_z = torch.cat([obj_class, conditioned_z],dim=-1)
+        conditioned_z = torch.cat([conditioned_obj_latent, conditioned_z],dim=-1)
         
         x_bbx, x_lbl, _, _ = self.gcn_decoder(conditioned_z)
         

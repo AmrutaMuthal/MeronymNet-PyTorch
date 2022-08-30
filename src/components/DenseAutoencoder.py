@@ -21,6 +21,7 @@ class DenseAutoencoder(nn.Module):
     def __init__(self,
                  latent_dims,
                  bbx_size,
+                 num_obj_classes,
                  hidden1=12,
                  hidden2=8,
                 ):
@@ -35,6 +36,7 @@ class DenseAutoencoder(nn.Module):
                               )
         self.decoder = Decoder(latent_dims,
                                bbx_size,
+                               num_obj_classes,
                                hidden1,
                                hidden2,
                               )
@@ -79,12 +81,13 @@ class Decoder(nn.Module):
     def __init__(self,
                  latent_dims,
                  bbx_size,
+                 num_obj_classes,
                  hidden1=32,
                  hidden2=16
                 ):
         
         super(Decoder, self).__init__()
-        self.d1 = nn.Linear(latent_dims, hidden1)
+        self.d1 = nn.Linear(latent_dims+num_obj_classes, hidden1)
         self.d2 = nn.Linear(hidden1, hidden2)
         self.dense_bbx = nn.Linear(hidden2,bbx_size)
         self.act1 = nn.Sigmoid()
