@@ -14,7 +14,9 @@ class Decoder(nn.Module):
                  output_log=False,
                  predict_edges=False,
                  predict_class=False,
-                 object_bbox=False
+                 object_bbox=False,
+                 hidden_obj_conditioning=None,
+                 hidden_part_conditioning=None,
                  ):
         super(Decoder, self).__init__()
        
@@ -26,10 +28,15 @@ class Decoder(nn.Module):
         self.predict_edges = predict_edges
         self.predict_class = predict_class
         
+        input_size = latent_dims + num_nodes + class_size
         if object_bbox:
-            self.dense1 = nn.Linear(2*latent_dims + num_nodes + class_size,128)  
-        else:
-            self.dense1 = nn.Linear(latent_dims + num_nodes + class_size,128)  
+            input_size+=latent_dims
+        if hidden_obj_conditioning:
+            input_size+=(hidden_obj_conditioning-class_size)
+        if hidden_part_conditioning:
+            input_size+=(hidden_part_conditioning-num_nodes)
+            
+        self.dense1 = nn.Linear(input_size,128)  
         self.dense2 = nn.Linear(128,128)
         self.dense_bbx = nn.Linear(128,num_nodes*bbx_size)
         self.dense_lbl = nn.Linear(128,num_nodes*label_size)
