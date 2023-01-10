@@ -44,6 +44,7 @@ class GCNEncoder(nn.Module):
         x = self.gconv2(x,E)
         
         batch_size = int(x.shape[0]/self.num_nodes)
+        
         x = torch.reshape(x,(batch_size,self.num_nodes*x.shape[-1]))
         
         boxes = X_data[:,1:]

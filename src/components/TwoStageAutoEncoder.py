@@ -29,7 +29,8 @@ class TwoStageAutoEncoder(nn.Module):
                  dense_hidden2=32,
                  dynamic_margin=False,
                  output_log=False,
-                 area_encoding=False
+                 area_encoding=False,
+                 coupling=False,
                 ):
         
         super(TwoStageAutoEncoder, self).__init__()
@@ -76,11 +77,12 @@ class TwoStageAutoEncoder(nn.Module):
                                num_nodes,
                                hidden1,
                                hidden2,
+                               coupling
                               )
         
         
         
-    def forward(self, E, X_part, X_obj , nodes, obj_class, variational=False):
+    def forward(self, E, X_part, X_obj , nodes, obj_class, variational=False, coupling=False):
         
         z_mean, z_logvar = self.gcn_encoder(E, X_part, obj_class)
         
@@ -94,7 +96,6 @@ class TwoStageAutoEncoder(nn.Module):
         #part conditioning
         nodes = torch.reshape(nodes,(batch_size, self.num_nodes))
         conditioned_obj_latent = torch.cat([nodes, conditioned_obj_latent],dim=-1)
-        x_obj_bbx = self.dense_decoder(conditioned_obj_latent)
         
         #sampling
         if variational:
@@ -110,6 +111,12 @@ class TwoStageAutoEncoder(nn.Module):
         conditioned_z = torch.cat([conditioned_obj_latent, z_latent],dim=-1)
         
         x_bbx, x_lbl, _, _ = self.gcn_decoder(conditioned_z)
+        if coupling:
+            
+            x_obj_bbx = self.dense_decoder(conditioned_z)
+           
+        else:
+            x_obj_bbx = self.dense_decoder(conditioned_obj_latent)
         
         if self.dynamic_margin:
             

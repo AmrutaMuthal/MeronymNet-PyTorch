@@ -86,11 +86,15 @@ class Decoder(nn.Module):
                  num_obj_classes,
                  num_parts,
                  hidden1=32,
-                 hidden2=16
+                 hidden2=16,
+                 coupling=False
                 ):
         
         super(Decoder, self).__init__()
-        self.d1 = nn.Linear(latent_dims+num_obj_classes+num_parts, hidden1)
+        if coupling:
+            self.d1 = nn.Linear(2*latent_dims+num_obj_classes+num_parts, hidden1)
+        else:
+            self.d1 = nn.Linear(latent_dims+num_obj_classes+num_parts, hidden1)
         self.d2 = nn.Linear(hidden1, hidden2)
         self.dense_bbx = nn.Linear(hidden2,bbx_size)
         self.act1 = nn.Sigmoid()

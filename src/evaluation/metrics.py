@@ -24,26 +24,29 @@ def iou(true, pred):
     
 def obj_scaling(node, obj):
     
-    node[:, :, 0] = obj[:, :, 0] + (obj[:, :, 1]-obj[:, :, 0])*node[:, :, 0]
-    node[:, :, 1] = obj[:, :, 0] + (obj[:, :, 1]-obj[:, :, 0])*node[:, :, 1]
-    node[:, :, 2] = obj[:, :, 2] + (obj[:, :, 3]-obj[:, :, 2])*node[:, :, 2]
-    node[:, :, 3] = obj[:, :, 2] + (obj[:, :, 3]-obj[:, :, 2])*node[:, :, 3]
+    node[:, :, 0] = obj[:, :, 0] + (obj[:, :, 2]-obj[:, :, 0])*node[:, :, 0]
+    node[:, :, 1] = obj[:, :, 1] + (obj[:, :, 3]-obj[:, :, 1])*node[:, :, 1]
+    node[:, :, 2] = obj[:, :, 0] + (obj[:, :, 2]-obj[:, :, 0])*node[:, :, 2]
+    node[:, :, 3] = obj[:, :, 1] + (obj[:, :, 3]-obj[:, :, 1])*node[:, :, 3]
     
     return node
     
-def get_metrics(node_data_true, X_obj_true, node_data_pred_test, X_obj_pred_test, label_true, class_true, num_nodes, num_classes):
+def get_metrics(node_data_true, X_obj_true, node_data_pred_test, X_obj_pred_test,
+                label_true, class_true, num_nodes, num_classes, scaling=True, return_boxes=False):
     
     node_pred = (node_data_pred_test).detach().to("cpu").numpy()
-    obj_pred = np.repeat(np.expand_dims((X_obj_pred_test).detach().to("cpu").numpy(),-2),num_nodes, -2)
-
-    node_pred = obj_scaling(node_pred, obj_pred)
+    
+    if scaling:
+        obj_pred = np.repeat(np.expand_dims((X_obj_pred_test).detach().to("cpu").numpy(),-2),num_nodes, -2)
+        node_pred = obj_scaling(node_pred, obj_pred)
     
     node_true = (node_data_true[:, 1:]).detach().to("cpu").numpy()
     node_true = np.reshape(node_true, node_pred.shape)
-    obj_true = np.reshape(X_obj_true.detach().to("cpu").numpy(), (obj_pred.shape[0],obj_pred.shape[2]))
-    obj_true = np.repeat(np.expand_dims(obj_true,-2),num_nodes, -2)
     
-    node_true = obj_scaling(node_true, obj_true)
+    if scaling:
+        obj_true = np.reshape(X_obj_true.detach().to("cpu").numpy(), (obj_pred.shape[0],obj_pred.shape[2]))
+        obj_true = np.repeat(np.expand_dims(obj_true,-2),num_nodes, -2)
+        node_true = obj_scaling(node_true, obj_true)
     
     obj_class = np.reshape(class_true.detach().to("cpu").numpy(), (node_data_pred_test.shape[0], num_classes))
     obj_class = np.argmax(obj_class, axis=-1)
@@ -54,6 +57,12 @@ def get_metrics(node_data_true, X_obj_true, node_data_pred_test, X_obj_pred_test
     iou_vals = np.squeeze(iou(node_true, node_pred))*label_vals
     idxs = np.where(label_vals==1)[1]+1
     label_vals[np.where(label_vals==1)] = idxs
+    
+    if return_boxes:
+        return node_true, node_pred, pd.DataFrame({"obj_class":obj_class.flatten(),
+                         "part_labels":label_vals.flatten(),
+                         "IOU":iou_vals.flatten(),
+                         "MSE":mse_vals.flatten()})
     
     return pd.DataFrame({"obj_class":obj_class.flatten(),
                          "part_labels":label_vals.flatten(),

@@ -29,7 +29,9 @@ class GCNAutoEncoder(nn.Module):
                  hidden3=128,
                  dynamic_margin=False,
                  output_log=False,
-                 area_encoding=False
+                 area_encoding=False,
+                 predict_edges=False,
+                 predict_class=False,
                 ):
         
         super(GCNAutoEncoder, self).__init__()
@@ -59,35 +61,51 @@ class GCNAutoEncoder(nn.Module):
                                bbx_size,
                                num_obj_classes,
                                label_size,
-                               output_log
+                               output_log,
+                               predict_edges,
+                               predict_class
                               )
         
         
         
-    def forward(self, E, X , nodes, obj_class):
+    def forward(self, E, X , nodes, obj_class, variational=False, predict_adj_class=False):
 
         z_mean, z_logvar = self.encoder(E, X, obj_class)
         batch_size = z_mean.shape[0]
         
         #sampling
-        epsilon = torch.normal(torch.zeros(z_logvar.shape, device=device))
-        z_latent = z_mean + epsilon*torch.exp(z_logvar)
+#         epsilon = torch.normal(torch.zeros(z_logvar.shape, device=device))
+#         z_latent = z_mean + epsilon*torch.exp(z_logvar)
         
+        #sampling
+        if variational:
+            epsilon = torch.normal(torch.zeros(z_logvar.shape))
+            z_latent = z_mean + epsilon*torch.exp(z_logvar)
+        else:
+            z_latent = z_mean
+            
         # conditioning
         nodes = torch.reshape(nodes,(batch_size, self.num_nodes))
         obj_class = torch.reshape(obj_class, (batch_size, self.num_obj_classes))
         conditioned_z = torch.cat([nodes, z_latent],dim=-1)
         conditioned_z = torch.cat([obj_class, conditioned_z],dim=-1)
         
-        x_bbx, x_lbl, _, _ = self.decoder(conditioned_z)
+        x_bbx, x_lbl, x_edge, class_pred = self.decoder(conditioned_z)
         
         if self.dynamic_margin:
             
             X_reshaped = torch.reshape(X, (batch_size, self.num_nodes, self.bbx_size+1))
             margin = self.margin_layer(torch.cat([X_reshaped[:, :, 1:], x_bbx], dim=-1))
             margin = self.margin_activation(margin)
+            
+            if predict_adj_class:
+                return x_bbx, x_lbl, x_edge, class_pred, z_mean, z_logvar, margin
+                
             return x_bbx, x_lbl, z_mean, z_logvar, margin
 
+        if predict_adj_class:
+            return x_bbx, x_lbl, x_edge, class_pred, z_mean, z_logvar
+        
         return x_bbx, x_lbl, z_mean, z_logvar
 
 
