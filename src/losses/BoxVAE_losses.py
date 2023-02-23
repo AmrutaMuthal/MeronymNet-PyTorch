@@ -20,7 +20,7 @@ def adj_loss(pred_edge, true_edge, batch, num_nodes):
     
     return loss
 
-def bbox_loss(pred_box, true_box, margin=None, log_output=False, area_encoding=False, has_mse=True):
+def bbox_loss(pred_box, true_box, margin=None, log_output=False, area_encoding=False, has_mse=True, has_obj=False):
     
     # IOU loss
     smooth_1 = torch.tensor([0.5]).cuda()
@@ -32,6 +32,11 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False, area_encoding=F
         pred_shape = ([pred_shape[0],pred_shape[1],pred_shape[2]+1])
     
     true_box = torch.reshape(true_box,pred_shape)
+    
+    if has_obj:
+        true_box = true_box[:, 1:]
+        pred_box = pred_box[:, 1:]
+    
     mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
     if log_output:
         log_pred = pred_box.clone()
@@ -114,7 +119,7 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False, area_encoding=F
     
     return total_loss
 
-def weighted_bbox_loss(pred_box, true_box, weight=0, margin=None, log_output=False, area_encoding=False):
+def weighted_bbox_loss(pred_box, true_box, weight=0, margin=None, log_output=False, area_encoding=False, has_obj=False):
     
     # IOU loss
     smooth_1 = torch.tensor([0.5]).cuda()
@@ -126,6 +131,11 @@ def weighted_bbox_loss(pred_box, true_box, weight=0, margin=None, log_output=Fal
         pred_shape = ([pred_shape[0],pred_shape[1],pred_shape[2]+1])
     
     true_box = torch.reshape(true_box,pred_shape)
+    
+#     if has_obj:
+#         true_box = true_box[:, 1:]
+#         pred_box = pred_box[:, 1:]
+
     mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
     if log_output:
         log_pred = pred_box.clone()
@@ -419,7 +429,7 @@ def intersection_loss_adjacency_gated(pred_box, true_box, adj_true, log_output=F
     
     return loss
 
-def obj_bbox_loss(pred_box, true_box, has_mse=True):
+def obj_bbox_loss(pred_box, true_box, weight=0, has_mse=True):
     
     # IOU loss
     smooth_1 = torch.tensor([0.5]).cuda()
@@ -452,10 +462,11 @@ def obj_bbox_loss(pred_box, true_box, has_mse=True):
     
     if has_mse:
         # Box regression loss
-        reg_loss = F.mse_loss(pred_box, true_box, reduction='mean')
+        reg_loss = (F.mse_loss(pred_box, true_box, reduction='mean') +
+                    F.l1_loss(pred_box, true_box, reduction='mean'))
         reg_loss = torch.mean(reg_loss)
     
-        return iou_loss + reg_loss
+        return iou_loss*(1+weight) + reg_loss*10*(1-weight)
     
     return iou_loss
 
@@ -593,9 +604,17 @@ def bbox_loss_hw(pred_box, true_box):
     
     return iou_loss + reg_loss + pair_loss
     
-def node_loss(pred_nodes, true_nodes):
+def node_loss(pred_nodes, true_nodes, has_obj=False):
     
-    true_nodes = torch.reshape(true_nodes, pred_nodes.shape)
+    
+    if has_obj:
+        pred_shape = pred_nodes.shape
+        true_nodes = torch.reshape(true_nodes, (pred_shape[0], pred_shape[1]+1, pred_shape[2]))       
+        true_nodes = true_nodes[:, 1:]
+    
+    else:
+        true_nodes = torch.reshape(true_nodes, pred_nodes.shape)
+    
     loss = F.binary_cross_entropy(pred_nodes, true_nodes, reduction='mean')
     
     return loss

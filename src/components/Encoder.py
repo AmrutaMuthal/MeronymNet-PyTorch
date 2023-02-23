@@ -27,7 +27,7 @@ class GCNEncoder(nn.Module):
         self.label_size = label_size
         self.num_obj_classes = num_obj_classes
         
-        self.gconv1 = gnn.GCNConv(bbx_size+label_size,hidden1, add_self_loops = False, bias=False, normalize=False)
+        self.gconv1 = gnn.GCNConv(bbx_size+label_size, hidden1, add_self_loops = False, bias=False, normalize=False)
         self.gconv2 = gnn.GCNConv(hidden1,hidden2, add_self_loops = False, bias=False, normalize=False)
         self.dense_boxes = nn.Linear(bbx_size, hidden2)
         self.dense_labels = nn.Linear(label_size,hidden2)

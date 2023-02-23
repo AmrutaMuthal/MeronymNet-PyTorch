@@ -30,7 +30,7 @@ class Decoder(nn.Module):
         
         input_size = latent_dims + num_nodes + class_size
         if object_bbox:
-            input_size+=latent_dims
+            input_size+=2
         if hidden_obj_conditioning:
             input_size+=(hidden_obj_conditioning-class_size)
         if hidden_part_conditioning:

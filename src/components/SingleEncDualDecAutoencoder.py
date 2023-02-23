@@ -12,7 +12,7 @@ from components.Encoder import GCNEncoder, GATEncoder
 from components.Decoder import Decoder as GCNDecoder
     
     
-class TwoStageAutoEncoder(nn.Module):
+class SingleEncDualDecAutoencoder(nn.Module):
     
     """ AutoEncoder module for Box-Vae
     """
@@ -31,15 +31,12 @@ class TwoStageAutoEncoder(nn.Module):
                  output_log=False,
                  area_encoding=False,
                  coupling=False,
-                 obj_bbx_conditioning=False,
                 ):
         
-        super(TwoStageAutoEncoder, self).__init__()
+        super(SingleEncDualDecAutoencoder, self).__init__()
         self.latent_dims = latent_dims
-        self.obj_latent_dims = 2
         self.num_nodes = num_nodes
         self.bbx_size = bbx_size
-        self.obj_bbx_conditioning = obj_bbx_conditioning
         self.num_obj_classes = num_obj_classes
         self.gcn_encoder = GCNEncoder(latent_dims,
                                   num_nodes,
@@ -59,88 +56,60 @@ class TwoStageAutoEncoder(nn.Module):
         if area_encoding:
             bbx_size-=1
         self.gcn_decoder = GCNDecoder(latent_dims,
-                               num_nodes,
+                               num_nodes-1,
                                bbx_size,
                                num_obj_classes,
                                label_size,
                                output_log=False,
                                predict_edges=False,
                                predict_class=False,
-                               object_bbox=True
+                               object_bbox=False
                               )
         
-        if not self.obj_bbx_conditioning:
-            self.dense_encoder = Encoder(self.obj_latent_dims,
-                                   bbx_size,
-                                   dense_hidden1,
-                                   dense_hidden2,
-                                  )
-            self.dense_decoder = Decoder(
-                                   self.obj_latent_dims,
-                                   bbx_size,
-                                   num_obj_classes,
-                                   num_nodes,
-                                   dense_hidden2,
-                                   dense_hidden1,
-                                   coupling
-                                  )
+
+        self.dense_decoder = Decoder(
+                               latent_dims,
+                               bbx_size,
+                               num_obj_classes,
+                               num_nodes-1,
+                               dense_hidden2,
+                               dense_hidden1,
+                               coupling
+                              )
         
         
         
-    def forward(self, E, X_part, X_obj , nodes, obj_class, variational=False, coupling=False,
-                obj_bx_conditioning = False):
+    def forward(self, E, X_part, nodes, obj_class, variational=False, coupling=False):
         
         z_mean_part, z_logvar_part = self.gcn_encoder(E, X_part, obj_class)
         
         batch_size = z_mean_part.shape[0]
         
-        if self.obj_bbx_conditioning:
-            z_mean_obj = X_obj
-            z_logvar_obj = X_obj
-            
-        else:
-            z_mean_obj, z_logvar_obj = self.dense_encoder(X_obj) 
-        
         
         #sampling
         if variational:
-            epsilon_obj = torch.normal(torch.zeros(z_logvar_obj.shape))
             epsilon_part = torch.normal(torch.zeros(z_logvar_part.shape))
             z_latent_part = z_mean_part + epsilon_part*torch.exp(z_logvar_part)
-            z_latent_obj = z_mean_obj + epsilon_obj*torch.exp(z_logvar_obj)
+            
         else:
             z_latent_part = z_mean_part            
-        
-        # obj conditioning
+
+        # obj and part conditioning
         obj_class = torch.reshape(obj_class, (batch_size, self.num_obj_classes))
-        conditioned_obj_latent = torch.cat([obj_class, z_mean_obj],dim=-1)
-        
-        # part conditioning
         nodes = torch.reshape(nodes,(batch_size, self.num_nodes))
-        conditioned_obj_latent = torch.cat([nodes, conditioned_obj_latent],dim=-1)
-        
-        # object and part representation concat
-        conditioned_z = torch.cat([conditioned_obj_latent, z_latent_part],dim=-1)
-        
+        nodes = nodes[:, 1:]
+        conditioned_z = torch.cat([nodes, obj_class, z_latent_part],dim=-1)
         x_bbx, x_lbl, _, _ = self.gcn_decoder(conditioned_z)
-        
-        if self.obj_bbx_conditioning:
-            x_obj_bbx = X_obj
-        
-        elif coupling:
-            
-            x_obj_bbx = self.dense_decoder(conditioned_z)
-           
-        else:
-            x_obj_bbx = self.dense_decoder(conditioned_obj_latent)
+        x_obj_bbx = self.dense_decoder(conditioned_z)
         
         if self.dynamic_margin:
             
             X_reshaped = torch.reshape(X_part, (batch_size, self.num_nodes, self.bbx_size+1))
-            margin = self.margin_layer(torch.cat([X_reshaped[:, :, 1:], x_bbx], dim=-1))
+            margin = self.margin_layer(torch.cat([X_reshaped[:, 1:, 1:], x_bbx], dim=-1))
             margin = self.margin_activation(margin)
-            return x_bbx, x_obj_bbx, x_lbl, z_mean_part, z_logvar_part, margin, z_mean_obj, z_logvar_obj
+            margin = torch.cat([torch.zeros(batch_size, 1, 2), margin], axis=1)
+            return x_bbx, x_obj_bbx, x_lbl, z_mean_part, z_logvar_part, margin
 
-        return x_bbx, x_obj_bbx, x_lbl, z_mean_part, z_logvar_part, z_mean_obj, z_logvar_obj
+        return x_bbx, x_obj_bbx, x_lbl, z_mean_part, z_logvar_part
 
 

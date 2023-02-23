@@ -31,15 +31,13 @@ class TwoStageAutoEncoder(nn.Module):
                  output_log=False,
                  area_encoding=False,
                  coupling=False,
-                 obj_bbx_conditioning=False,
                 ):
         
         super(TwoStageAutoEncoder, self).__init__()
         self.latent_dims = latent_dims
-        self.obj_latent_dims = 2
+        self.obj_latent_dims = 1
         self.num_nodes = num_nodes
         self.bbx_size = bbx_size
-        self.obj_bbx_conditioning = obj_bbx_conditioning
         self.num_obj_classes = num_obj_classes
         self.gcn_encoder = GCNEncoder(latent_dims,
                                   num_nodes,
@@ -69,37 +67,29 @@ class TwoStageAutoEncoder(nn.Module):
                                object_bbox=True
                               )
         
-        if not self.obj_bbx_conditioning:
-            self.dense_encoder = Encoder(self.obj_latent_dims,
-                                   bbx_size,
-                                   dense_hidden1,
-                                   dense_hidden2,
-                                  )
-            self.dense_decoder = Decoder(
-                                   self.obj_latent_dims,
-                                   bbx_size,
-                                   num_obj_classes,
-                                   num_nodes,
-                                   dense_hidden2,
-                                   dense_hidden1,
-                                   coupling
-                                  )
+        self.dense_encoder = Encoder(self.obj_latent_dims,
+                               bbx_size,
+                               dense_hidden1,
+                               dense_hidden2,
+                              )
+        self.dense_decoder = Decoder(
+                               self.obj_latent_dims,
+                               bbx_size,
+                               num_obj_classes,
+                               num_nodes,
+                               dense_hidden2,
+                               dense_hidden1,
+                               coupling
+                              )
         
         
         
-    def forward(self, E, X_part, X_obj , nodes, obj_class, variational=False, coupling=False,
-                obj_bx_conditioning = False):
+    def forward(self, E, X_part, X_obj , nodes, obj_class, variational=False, coupling=False):
         
         z_mean_part, z_logvar_part = self.gcn_encoder(E, X_part, obj_class)
         
         batch_size = z_mean_part.shape[0]
-        
-        if self.obj_bbx_conditioning:
-            z_mean_obj = X_obj
-            z_logvar_obj = X_obj
-            
-        else:
-            z_mean_obj, z_logvar_obj = self.dense_encoder(X_obj) 
+        z_mean_obj, z_logvar_obj = self.dense_encoder(X_obj) 
         
         
         #sampling
@@ -123,11 +113,7 @@ class TwoStageAutoEncoder(nn.Module):
         conditioned_z = torch.cat([conditioned_obj_latent, z_latent_part],dim=-1)
         
         x_bbx, x_lbl, _, _ = self.gcn_decoder(conditioned_z)
-        
-        if self.obj_bbx_conditioning:
-            x_obj_bbx = X_obj
-        
-        elif coupling:
+        if coupling:
             
             x_obj_bbx = self.dense_decoder(conditioned_z)
            
