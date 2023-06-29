@@ -12,51 +12,51 @@ import torch.utils.data as data_utils
 
 def load_data(obj_data_postfix, part_data_post_fix, file_postfix, seed, batch_size, validation=True):
     
-    outfile = 'D:/meronym_data/X_train'+part_data_post_fix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/X_train'+part_data_post_fix+'.np'
     with open(outfile, 'rb') as pickle_file:
         X_train = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/X_train'+obj_data_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/X_train'+obj_data_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         X_obj_train = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/class_v'+file_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/class_v'+file_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         class_v = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/adj_train'+file_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/adj_train'+file_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         adj_train = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/X_train_val'+part_data_post_fix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/X_train_val'+part_data_post_fix+'.np'
     with open(outfile, 'rb') as pickle_file:
         X_train_val = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/X_train_val'+obj_data_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/X_train_val'+obj_data_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         X_obj_train_val = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/class_v_val'+file_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/class_v_val'+file_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         class_v_val = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/adj_train_val'+file_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/adj_train_val'+file_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         adj_train_val = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/X_test'+part_data_post_fix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/X_test'+part_data_post_fix+'.np'
     with open(outfile, 'rb') as pickle_file:
         X_test = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/X_test'+obj_data_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/X_test'+obj_data_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         X_obj_test = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/adj_test'+file_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/adj_test'+file_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         adj_test = pickle.load(pickle_file)
 
-    outfile = 'D:/meronym_data/class_v'+file_postfix+'.np'
+    outfile = 'C:/GitHub/meronymnet/data_np_16/class_v'+file_postfix+'.np'
     with open(outfile, 'rb') as pickle_file:
         class_v_test = pickle.load(pickle_file)
         
