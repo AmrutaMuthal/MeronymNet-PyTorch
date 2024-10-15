@@ -3,6 +3,22 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.utils import to_dense_adj
 
+
+def _get_smoothening_constants():
+    if torch.cuda.is_available():
+        smooth_1 = torch.tensor([0.5]).cuda()
+        smooth_2 = torch.tensor([1e-08]).cuda()
+        zero = torch.tensor([0.0]).cuda()
+        one = torch.tensor([1.0]).cuda()
+    else:
+        smooth_1 = torch.tensor([0.5])
+        smooth_2 = torch.tensor([1e-08])
+        zero = torch.tensor([0.0])
+        one = torch.tensor([1.0])
+    
+    return smooth_1, smooth_2, zero, one
+
+
 def kl_loss(z_mean,z_logvar):
     
     loss = torch.mean(0.5 * torch.sum((torch.square(z_mean) +
@@ -23,10 +39,8 @@ def adj_loss(pred_edge, true_edge, batch, num_nodes):
 def bbox_loss(pred_box, true_box, margin=None, log_output=False, area_encoding=False, has_mse=True, has_obj=False):
     
     # IOU loss
-    smooth_1 = torch.tensor([0.5]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([1.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     pred_shape = pred_box.shape
     if area_encoding:
         pred_shape = ([pred_shape[0],pred_shape[1],pred_shape[2]+1])
@@ -122,10 +136,8 @@ def bbox_loss(pred_box, true_box, margin=None, log_output=False, area_encoding=F
 def weighted_bbox_loss(pred_box, true_box, weight=0, margin=None, log_output=False, area_encoding=False, has_obj=False):
     
     # IOU loss
-    smooth_1 = torch.tensor([0.5]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([1.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     pred_shape = pred_box.shape
     if area_encoding:
         pred_shape = ([pred_shape[0],pred_shape[1],pred_shape[2]+1])
@@ -222,14 +234,23 @@ def mse_loss(pred_box, true_box):
     
     return reg_loss
    
+def coarse_bbx_loss(pred_box, true_box):
+    
+    pred_shape = pred_box.shape
+    true_box = torch.reshape(true_box,pred_shape)
+    reg_loss = F.mse_loss(pred_box, true_box, reduction='none')
+    reg_loss = torch.mean(reg_loss,dim = -1)
+    total_non_zero = torch.count_nonzero(reg_loss)
+    reg_loss = torch.sum(reg_loss)/(total_non_zero+1)
+    
+    return reg_loss
+
 def part_intersection_loss(pred_box, true_box, log_output=False, area_encoding=False, mode 
                            =True):
     
     # IOU loss
-    smooth_1 = torch.tensor([0.5]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([1.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     pred_shape = pred_box.shape
     true_box = torch.reshape(true_box,pred_shape)
     mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
@@ -294,10 +315,8 @@ def part_intersection_loss(pred_box, true_box, log_output=False, area_encoding=F
 def intersection_loss(pred_box, true_box, log_output=False, area_encoding=False, binary=True):
     
     # IOU loss
-    smooth_1 = torch.tensor([0.5]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([1.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     pred_shape = pred_box.shape
     true_box = torch.reshape(true_box,pred_shape)
     batch, num_parts, pars = pred_shape
@@ -363,10 +382,8 @@ def intersection_loss(pred_box, true_box, log_output=False, area_encoding=False,
 def intersection_loss_adjacency_gated(pred_box, true_box, adj_true, log_output=False, area_encoding=False, binary=True):
     
     # IOU loss
-    smooth_1 = torch.tensor([0.5]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([1.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     pred_shape = pred_box.shape
     true_box = torch.reshape(true_box,pred_shape)
     batch, num_parts, pars = pred_shape
@@ -432,10 +449,8 @@ def intersection_loss_adjacency_gated(pred_box, true_box, adj_true, log_output=F
 def obj_bbox_loss(pred_box, true_box, weight=0, has_mse=True):
     
     # IOU loss
-    smooth_1 = torch.tensor([0.5]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([1.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     pred_shape = pred_box.shape
     true_box = torch.reshape(true_box,pred_shape)
     x1g, y1g, x2g, y2g = torch.tensor_split(true_box, 4, dim=-1)
@@ -473,10 +488,8 @@ def obj_bbox_loss(pred_box, true_box, weight=0, has_mse=True):
 def bbox_loss_area_encoding(pred_box, true_box, margin=None, log_output=False):
     
     # IOU loss
-    smooth_1 = torch.tensor([0.5]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([1.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     pred_shape = pred_box.shape
     pred_shape = ([pred_shape[0],pred_shape[1],pred_shape[2]+1])
     
@@ -556,10 +569,8 @@ def bbox_loss_area_encoding(pred_box, true_box, margin=None, log_output=False):
 def bbox_loss_hw(pred_box, true_box):
     
     # IOU loss
-    smooth_1 = torch.tensor([10]).cuda()
-    smooth_2 = torch.tensor([1e-08]).cuda()
-    zero = torch.tensor([0.0]).cuda()
-    one = torch.tensor([0.7]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
+
     true_box = torch.reshape(true_box,pred_box.shape)
     mask = torch.where(torch.sum(true_box,dim=-1,keepdim=True)!=0,1.0,0.0)
     pred_box = mask*pred_box
@@ -642,7 +653,7 @@ def frange_cycle_linear(n_iter, start=0.0, stop=1.0,  n_cycle=4, ratio=0.5):
     return L
     
 def iou(true, pred):
-    zero = torch.tensor([0.0]).cuda()
+    smooth_1, smooth_2, zero, one = _get_smoothening_constants()
 
     x1g, y1g, x2g, y2g = torch.tensor_split(true, 4, dim=-1)
     x1, y1, x2, y2 = torch.tensor_split(torch.squeeze(pred), 4, dim=-1)
