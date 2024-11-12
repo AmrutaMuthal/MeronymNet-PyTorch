@@ -29,6 +29,7 @@ class GCNEncoder(nn.Module):
         
         self.gconv1 = gnn.GCNConv(bbx_size+label_size, hidden1, add_self_loops = False, bias=False, normalize=False)
         self.gconv2 = gnn.GCNConv(hidden1,hidden2, add_self_loops = False, bias=False, normalize=False)
+        self.gconv3 = gnn.GCNConv(hidden2,hidden2, add_self_loops = False, bias=False, normalize=False)
         self.dense_boxes = nn.Linear(bbx_size, hidden2)
         self.dense_labels = nn.Linear(label_size,hidden2)
         self.act = nn.ReLU()
@@ -42,9 +43,9 @@ class GCNEncoder(nn.Module):
         
         x = self.gconv1(X_data,E)
         x = self.gconv2(x,E)
+        x = self.gconv3(x,E)
         
         batch_size = int(x.shape[0]/self.num_nodes)
-        
         x = torch.reshape(x,(batch_size,self.num_nodes*x.shape[-1]))
         
         boxes = X_data[:,1:]
@@ -129,7 +130,7 @@ class GATEncoder(nn.Module):
         class_labels = torch.reshape(class_labels,(batch_size,int(class_labels.shape[-1]/batch_size)))
         x = torch.cat([class_labels,x],dim=-1)
         x = self.act(self.dense2(x))
-        x = torch.add(x,mix)
+        # x = torch.add(x,mix)
         x = self.act(self.dense3(x))
         x = self.act(self.dense3(x))
         
