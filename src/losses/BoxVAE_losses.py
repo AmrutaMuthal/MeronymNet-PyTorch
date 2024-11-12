@@ -189,8 +189,14 @@ def weighted_bbox_loss(pred_box, true_box, weight=0, margin=None, log_output=Fal
         boxBArea = torch.multiply(torch.maximum(zero, (x2 - x1 + one)),
                                   torch.maximum(zero,(y2 - y1 + one)))
     unionArea = boxAArea + boxBArea - interArea + smooth_2
-    
     iouk = interArea / unionArea
+
+    # iouk = torchvision.ops.complete_box_iou_loss(
+    #         torch.flatten(true_box, end_dim=-2),
+    #         torch.flatten(pred_box, end_dim=-2),
+    #         reduction='none'
+    #     )
+
     iou_loss = -torch.log(iouk + smooth_2)*mask
     iou_loss = torch.mean(iou_loss)
     
@@ -595,7 +601,7 @@ def bbox_loss_hw(pred_box, true_box):
                                 (hp + torch.maximum(smooth_1*hg,one))))
     unionArea = boxAArea + boxBArea - interArea + smooth_2
     
-    iouk = interArea / unionArea
+    iouk = interArea / unionArea 
     iou_loss = -torch.log(iouk + smooth_2)
     iou_loss = torch.mean(iou_loss)
     
